@@ -1,14 +1,6 @@
 @import "tailwindcss";
 
-@layer base {
-  * {
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-  body {
-    background-color: #020617;
-    color: #f8fafc;
-  }
-}
+@custom-variant dark (&:is(.dark, .dark *));
 
 @keyframes fadeIn {
   from {
@@ -32,14 +24,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+.dark ::-webkit-scrollbar-thumb {
   background: #334155;
 }

@@ -57,7 +57,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
             <div>
               <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                {isSignUp ? 'Create Jira Account' : 'Sign in to AI Project Manager'}
+                {isSignUp ? 'Create Workspace Account' : 'Sign in to AI Project Manager'}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Workspace authentication & role permissions

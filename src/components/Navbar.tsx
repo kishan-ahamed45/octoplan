@@ -68,10 +68,10 @@ export function Navbar({ onSeedSuccess, onOpenCreateModal }: NavbarProps) {
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                  Jira<span className="text-blue-600 dark:text-blue-400 font-extrabold">AI</span>
+                  AI Project Manager
                 </span>
                 <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  Enterprise
+                  Agentic MVP
                 </span>
               </div>
             </Link>

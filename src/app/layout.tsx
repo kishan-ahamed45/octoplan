@@ -7,7 +7,7 @@ import { AuthProvider } from '@/context/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Jira AI | Enterprise Project Planning & Agentic Task Management',
+  title: 'AI Project Manager | Autonomous Agentic Software Engineering',
   description: 'An enterprise-grade project management application powered by autonomous AI agent tool execution and PostgreSQL.',
 };
 
