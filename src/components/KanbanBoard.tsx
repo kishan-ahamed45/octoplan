@@ -3,7 +3,7 @@
 import React from 'react';
 import { Task, TaskStatus } from '@/types';
 import { TaskCard } from './TaskCard';
-import { Plus, Circle, Clock, CheckCircle2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -23,81 +23,73 @@ export function KanbanBoard({
   const columns: {
     status: TaskStatus;
     title: string;
-    icon: React.ElementType;
-    badgeColor: string;
-    borderAccent: string;
+    headerBg: string;
   }[] = [
     {
       status: 'TODO',
-      title: 'To Do',
-      icon: Circle,
-      badgeColor: 'bg-slate-800 text-slate-300 border-slate-700',
-      borderAccent: 'border-t-slate-500',
+      title: 'TO DO',
+      headerBg: 'text-slate-700 dark:text-slate-300',
     },
     {
       status: 'IN_PROGRESS',
-      title: 'In Progress',
-      icon: Clock,
-      badgeColor: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
-      borderAccent: 'border-t-amber-500',
+      title: 'IN PROGRESS',
+      headerBg: 'text-blue-700 dark:text-blue-400',
     },
     {
       status: 'COMPLETED',
-      title: 'Completed',
-      icon: CheckCircle2,
-      badgeColor: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-      borderAccent: 'border-t-emerald-500',
+      title: 'DONE',
+      headerBg: 'text-emerald-700 dark:text-emerald-400',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
       {columns.map((col) => {
         const colTasks = tasks.filter((t) => t.status === col.status);
-        const Icon = col.icon;
 
         return (
           <div
             key={col.status}
-            className={`flex flex-col rounded-2xl bg-slate-900/40 border border-slate-800 border-t-2 ${col.borderAccent} p-4 min-h-[500px]`}
+            className="flex flex-col rounded-xl bg-slate-100/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800/80 p-3 min-h-[550px] transition-colors"
           >
-            {/* Column Header */}
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
+            {/* Jira Column Header */}
+            <div className="flex items-center justify-between mb-3 px-1">
               <div className="flex items-center space-x-2">
-                <Icon className="w-4 h-4 text-slate-400" />
-                <h3 className="font-semibold text-sm text-white">{col.title}</h3>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${col.badgeColor}`}>
+                <h3 className={`font-bold text-xs uppercase tracking-wider ${col.headerBg}`}>
+                  {col.title}
+                </h3>
+                <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                   {colTasks.length}
                 </span>
               </div>
 
               <button
                 onClick={() => onOpenAddTask(col.status)}
-                title={`Add task to ${col.title}`}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title={`Create issue in ${col.title}`}
+                className="p-1 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Task List in Column */}
-            <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+            {/* Task list */}
+            <div className="flex-1 space-y-2.5 overflow-y-auto pr-0.5">
               {colTasks.length === 0 ? (
-                <div className="h-36 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500 text-xs p-4 text-center">
-                  <span>No tasks in {col.title.toLowerCase()}</span>
+                <div className="h-28 flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-800 text-slate-400 dark:text-slate-600 text-xs text-center">
+                  <span>No issues</span>
                   <button
                     onClick={() => onOpenAddTask(col.status)}
-                    className="mt-2 text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 font-medium"
+                    className="mt-1 text-blue-600 dark:text-blue-400 hover:underline font-semibold"
                   >
-                    <Plus className="w-3 h-3" />
-                    <span>Add a task</span>
+                    + Create issue
                   </button>
                 </div>
               ) : (
-                colTasks.map((task) => (
+                colTasks.map((task, idx) => (
                   <TaskCard
                     key={task.id}
                     task={task}
+                    index={idx + 1}
                     onUpdateStatus={onUpdateStatus}
                     onUpdateTask={onUpdateTask}
                     onDeleteTask={onDeleteTask}
