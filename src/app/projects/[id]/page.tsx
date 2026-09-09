@@ -10,6 +10,8 @@ import { TaskListView } from '@/components/TaskListView';
 import { AIPlannerModal } from '@/components/AIPlannerModal';
 import { AIAssistantDrawer } from '@/components/AIAssistantDrawer';
 import { CreateTaskModal } from '@/components/CreateTaskModal';
+import { AsgardeoDirectRedirect } from '@/components/AsgardeoDirectRedirect';
+import { useAuth } from '@/context/AuthContext';
 import { ProjectWithStats, Task, TaskStatus } from '@/types';
 import {
   ArrowLeft,
@@ -29,6 +31,7 @@ interface ProjectPageProps {
 }
 
 export default function ProjectDetailsPage({ params }: ProjectPageProps) {
+  const { isSignedIn, loading: authLoading } = useAuth();
   const resolvedParams = use(params);
   const projectId = resolvedParams.id;
   const router = useRouter();
@@ -145,6 +148,10 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
     setDefaultTaskStatus(status);
     setIsAddTaskOpen(true);
   };
+
+  if (!isSignedIn) {
+    return <AsgardeoDirectRedirect />;
+  }
 
   if (loading && !project) {
     return (

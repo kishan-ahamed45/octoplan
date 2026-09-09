@@ -1,7 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import React, { createContext, useContext } from 'react';
+import { useAsgardeo } from '@asgardeo/nextjs';
 
 export interface UserProfile {
   id: string;
@@ -14,183 +14,40 @@ export interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
-  signInWithDemo: (role?: 'lead' | 'dev') => void;
-  signInWithEmail: (email: string, pass: string) => Promise<{ error?: string }>;
-  signUpWithEmail: (email: string, pass: string, name: string) => Promise<{ error?: string }>;
-  signOut: () => Promise<void>;
+  isSignedIn: boolean;
+  signIn: () => Promise<any>;
+  signOut: () => Promise<any>;
 }
-
-const DEFAULT_DEMO_USER: UserProfile = {
-  id: 'user-demo-1',
-  email: 'kishan@dev.io',
-  name: 'Kishan (Lead Architect)',
-  role: 'Product Lead',
-  avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Kishan',
-};
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  signInWithDemo: () => {},
-  signInWithEmail: async () => ({}),
-  signUpWithEmail: async () => ({}),
+  isSignedIn: false,
+  signIn: async () => {},
   signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(DEFAULT_DEMO_USER);
-  const [loading, setLoading] = useState(false);
+  const asgardeo = useAsgardeo();
 
-  useEffect(() => {
-    // Check saved session or Supabase session
-    const savedUser = localStorage.getItem('app-auth-user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {}
-    }
+  const rawUser = asgardeo.user as any;
 
-    if (isSupabaseConfigured && supabase) {
-      supabase.auth.getUser().then(({ data: { user: sbUser } }) => {
-        if (sbUser) {
-          const profile: UserProfile = {
-            id: sbUser.id,
-            email: sbUser.email || 'user@example.com',
-            name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'Team Member',
-            role: 'Software Engineer',
-            avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${sbUser.email}`,
-          };
-          setUser(profile);
-          localStorage.setItem('app-auth-user', JSON.stringify(profile));
-        }
-      });
-
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
-          const profile: UserProfile = {
-            id: session.user.id,
-            email: session.user.email || 'user@example.com',
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Team Member',
-            role: 'Software Engineer',
-            avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
-          };
-          setUser(profile);
-          localStorage.setItem('app-auth-user', JSON.stringify(profile));
-        } else if (!localStorage.getItem('app-auth-user')) {
-          setUser(DEFAULT_DEMO_USER);
-        }
-      });
-
-      return () => {
-        listener?.subscription.unsubscribe();
-      };
-    }
-  }, []);
-
-  const signInWithDemo = (role: 'lead' | 'dev' = 'lead') => {
-    const profile: UserProfile =
-      role === 'lead'
-        ? {
-            id: 'user-demo-lead',
-            email: 'architect@enterprise.io',
-            name: 'Kishan Ahamed',
-            role: 'Senior System Architect',
-            avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Kishan',
-          }
-        : {
-            id: 'user-demo-dev',
-            email: 'developer@enterprise.io',
-            name: 'Alex Rivera',
-            role: 'Full-Stack Engineer',
-            avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
-          };
-    setUser(profile);
-    localStorage.setItem('app-auth-user', JSON.stringify(profile));
-  };
-
-  const signInWithEmail = async (email: string, pass: string) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-      if (error) return { error: error.message };
-      if (data.user) {
-        const profile: UserProfile = {
-          id: data.user.id,
-          email: data.user.email || email,
-          name: data.user.user_metadata?.full_name || email.split('@')[0],
-          role: 'Engineer',
-          avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-        };
-        setUser(profile);
-        localStorage.setItem('app-auth-user', JSON.stringify(profile));
-      }
-      return {};
-    }
-
-    // Mock login if supabase auth is not configured
-    const profile: UserProfile = {
-      id: `user-${Date.now()}`,
-      email,
-      name: email.split('@')[0],
-      role: 'Engineer',
-      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-    };
-    setUser(profile);
-    localStorage.setItem('app-auth-user', JSON.stringify(profile));
-    return {};
-  };
-
-  const signUpWithEmail = async (email: string, pass: string, name: string) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: pass,
-        options: { data: { full_name: name } },
-      });
-      if (error) return { error: error.message };
-      if (data.user) {
-        const profile: UserProfile = {
-          id: data.user.id,
-          email: data.user.email || email,
-          name,
-          role: 'Engineer',
-          avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-        };
-        setUser(profile);
-        localStorage.setItem('app-auth-user', JSON.stringify(profile));
-      }
-      return {};
-    }
-
-    // Mock signup
-    const profile: UserProfile = {
-      id: `user-${Date.now()}`,
-      email,
-      name,
-      role: 'Engineer',
-      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-    };
-    setUser(profile);
-    localStorage.setItem('app-auth-user', JSON.stringify(profile));
-    return {};
-  };
-
-  const signOut = async () => {
-    if (isSupabaseConfigured && supabase) {
-      await supabase.auth.signOut();
-    }
-    setUser(null);
-    localStorage.removeItem('app-auth-user');
-  };
+  const user: UserProfile | null = asgardeo.isSignedIn && rawUser ? {
+    id: rawUser.sub || rawUser.id || 'asgardeo-user',
+    email: rawUser.email || rawUser.userName || rawUser.username || 'user@asgardeo.io',
+    name: rawUser.displayName || rawUser.name || rawUser.given_name || rawUser.userName || rawUser.username || 'Asgardeo User',
+    role: 'Enterprise Member',
+    avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawUser.email || rawUser.userName || 'user'}`,
+  } : null;
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        loading,
-        signInWithDemo,
-        signInWithEmail,
-        signUpWithEmail,
-        signOut,
+        loading: Boolean(asgardeo.isLoading),
+        isSignedIn: Boolean(asgardeo.isSignedIn),
+        signIn: asgardeo.signIn ? () => asgardeo.signIn!() : async () => {},
+        signOut: asgardeo.signOut ? () => asgardeo.signOut!() : async () => {},
       }}
     >
       {children}

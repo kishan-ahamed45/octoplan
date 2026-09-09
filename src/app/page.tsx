@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/Navbar';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
+import { AsgardeoDirectRedirect } from '@/components/AsgardeoDirectRedirect';
+import { useAuth } from '@/context/AuthContext';
 import { ProjectWithStats } from '@/types';
 import {
   FolderKanban,
@@ -17,9 +19,11 @@ import {
   Trash2,
   Search,
   Users,
+  Loader2,
 } from 'lucide-react';
 
 export default function DashboardPage() {
+  const { isSignedIn, loading: authLoading } = useAuth();
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -42,8 +46,10 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (isSignedIn) {
+      fetchProjects();
+    }
+  }, [isSignedIn]);
 
   const handleDeleteProject = async (id: string, name: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -76,6 +82,10 @@ export default function DashboardPage() {
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.description.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (!isSignedIn) {
+    return <AsgardeoDirectRedirect />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
