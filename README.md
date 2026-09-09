@@ -56,4 +56,4 @@ Open [http://localhost:3000](http://localhost:3000) to access the application.
 - **Auth**: WSO2 Asgardeo (`@asgardeo/nextjs`)
 - **AI**: Google Gemini API (Agent Tool Calling)
 - **Database**: Supabase / PostgreSQL (with local fallback storage)
-- **S
+-  - **Styling**: Tailwind CSS + Lucide Icons
