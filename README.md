@@ -99,15 +99,6 @@ If connecting to Supabase:
 2. Go to the **SQL Editor**.
 3. Paste and run the contents of [`supabase/schema.sql`](supabase/schema.sql).
 4. Copy your project URL and keys to `.env.local`.
-
----
-
-## 🧪 2-Minute Hackathon Demo Script
-
-1. **Open Dashboard**: View global metrics and existing projects.
-2. **Create Project**: Click `+ Create Project`, enter *"Online Food Delivery Platform"*, and click create.
-3. **Generate Plan with AI**: Click `⚡ Generate AI Plan`, review the generated architecture tasks, and click `Apply Tasks to Project`.
-4. **Inspect Board**: View tasks distributed on the Kanban board with priority tags.
 5. **Interact with AI Agent**:
    - Open `AI Agent Assistant`.
    - Ask: *"What should I work on next?"* -> AI reads database tasks and recommends the highest-priority item.
