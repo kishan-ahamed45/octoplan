@@ -45,7 +45,6 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 npm run dev
 ```
 
-<<<<<<< dev
 Open [http://localhost:3000](http://localhost:3000) to access the application.
 
 ---
