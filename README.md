@@ -1,11 +1,19 @@
-# 🐙 OctoPlan
+<p align="center">
+  <img src="./public/octoplan-logo.jpg" alt="OctoPlan Logo" width="88" />
+</p>
 
-> **Open-source, self-hosted AI project workspace.**  
-> *Plan sprints, manage Kanban boards, and let an AI Agile Lead juggle your backlog—hosted on your own server.*
+<h1 align="center">OctoPlan</h1>
 
-![Status](https://img.shields.io/badge/release-v1.0-blue)
-![Status](https://img.shields.io/badge/v2-in_active_development-amber)
-![License](https://img.shields.io/badge/license-MIT-green)
+<p align="center">
+  <strong>Open-source, self-hosted AI project workspace.</strong><br />
+  <em>Plan sprints, manage Kanban boards, and let an AI Agile Lead juggle your backlog—hosted on your own server.</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/release-v1.0-blue" alt="Release v1.0" />
+  <img src="https://img.shields.io/badge/v2-in_active_development-amber" alt="v2 in active development" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
+</p>
 
 **OctoPlan** is built for organizations and engineering teams that want an intelligent alternative to Jira/Linear without vendor lock-in. Clone the repo, spin it up locally or via Docker, and keep your projects, tasks, and AI workflows under your own control.
 

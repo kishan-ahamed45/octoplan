@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -127,9 +128,13 @@ export function AppShell({
           onClick={() => setMobileOpen(false)}
           className="flex items-center space-x-2.5 group"
         >
-          <div className="w-7 h-7 rounded-lg bg-white text-neutral-950 flex items-center justify-center text-sm shadow-xs">
-            🐙
-          </div>
+          <Image
+            src="/octoplan-logo.jpg"
+            alt="OctoPlan"
+            width={28}
+            height={28}
+            className="w-7 h-7 rounded-lg object-cover"
+          />
           <span className="text-sm font-semibold tracking-tight text-white">
             OctoPlan
           </span>
