@@ -1,53 +1,126 @@
 'use client';
 
-import React, { createContext, useContext } from 'react';
-import { useAsgardeo } from '@asgardeo/nextjs';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { UserProfile } from '@/types';
 
-export interface UserProfile {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  avatarUrl?: string;
+export type { UserProfile };
+
+interface AuthActionResult {
+  success: boolean;
+  error?: string;
 }
 
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   isSignedIn: boolean;
-  signIn: () => Promise<any>;
-  signOut: () => Promise<any>;
+  login: (email: string, password: string) => Promise<AuthActionResult>;
+  register: (name: string, email: string, password: string) => Promise<AuthActionResult>;
+  loginDemo: () => Promise<AuthActionResult>;
+  signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   isSignedIn: false,
-  signIn: async () => {},
+  login: async () => ({ success: false }),
+  register: async () => ({ success: false }),
+  loginDemo: async () => ({ success: false }),
   signOut: async () => {},
+  refreshSession: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const asgardeo = useAsgardeo();
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const rawUser = asgardeo.user as any;
+  const refreshSession = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me', { cache: 'no-store' });
+      const data = await res.json();
+      setUser(data.success ? data.data?.user || null : null);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const user: UserProfile | null = asgardeo.isSignedIn && rawUser ? {
-    id: rawUser.sub || rawUser.id || 'asgardeo-user',
-    email: rawUser.email || rawUser.userName || rawUser.username || 'user@asgardeo.io',
-    name: rawUser.displayName || rawUser.name || rawUser.given_name || rawUser.userName || rawUser.username || 'Asgardeo User',
-    role: 'Enterprise Member',
-    avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawUser.email || rawUser.userName || 'user'}`,
-  } : null;
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) {
+          setUser(data.success ? data.data?.user || null : null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleAuthRequest = async (
+    endpoint: string,
+    payload?: Record<string, unknown>
+  ): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: payload ? { 'Content-Type': 'application/json' } : undefined,
+        body: payload ? JSON.stringify(payload) : undefined,
+      });
+      const data = await res.json();
+      if (!data.success) {
+        return { success: false, error: data.error || 'Authentication failed' };
+      }
+      setUser(data.data?.user || null);
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Network error',
+      };
+    }
+  };
+
+  const login = (email: string, password: string) =>
+    handleAuthRequest('/api/auth/login', { email, password });
+
+  const register = (name: string, email: string, password: string) =>
+    handleAuthRequest('/api/auth/register', { name, email, password });
+
+  const loginDemo = () => handleAuthRequest('/api/auth/demo');
+
+  const signOut = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      setUser(null);
+    }
+  };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        loading: Boolean(asgardeo.isLoading),
-        isSignedIn: Boolean(asgardeo.isSignedIn),
-        signIn: asgardeo.signIn ? () => asgardeo.signIn!() : async () => {},
-        signOut: asgardeo.signOut ? () => asgardeo.signOut!() : async () => {},
+        loading,
+        isSignedIn: Boolean(user),
+        login,
+        register,
+        loginDemo,
+        signOut,
+        refreshSession,
       }}
     >
       {children}

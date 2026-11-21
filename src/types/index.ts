@@ -1,5 +1,23 @@
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type UserRole = 'Workspace Admin' | 'Member';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole | string;
+  avatarUrl?: string;
+}
+
+export interface UserRecord {
+  id: string;
+  name: string;
+  email: string;
+  password_hash: string;
+  role: UserRole | string;
+  created_at: string;
+}
 
 export interface Project {
   id: string;

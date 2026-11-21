@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
-import { generateProjectPlan } from '@/lib/gemini';
+import { generateProjectPlan } from '@/lib/ai';
 import { getProjectById, createBatchTasks } from '@/lib/db';
-import { Task } from '@/types';
+import { requireAuth } from '@/lib/auth';
+import { GeneratePlanResponse, Task } from '@/types';
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+
   try {
     const body = await request.json();
-    const { projectId, projectName, projectDescription, saveToDatabase } = body;
+    const { projectId, projectName, projectDescription, saveToDatabase, tasks: providedTasks } = body;
 
     let targetName = projectName;
     let targetDesc = projectDescription;
@@ -30,7 +34,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const plan = await generateProjectPlan(targetName, targetDesc);
+    const plan: GeneratePlanResponse =
+      Array.isArray(providedTasks) && providedTasks.length > 0
+        ? { project_overview: '', tasks: providedTasks }
+        : await generateProjectPlan(targetName, targetDesc);
 
     let createdTasks: Task[] = [];
     if (saveToDatabase && projectId) {
@@ -53,11 +60,9 @@ export async function POST(request: Request) {
         createdTasks,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to generate project plan';
     console.error('API Error /api/ai/plan:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to generate project plan' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

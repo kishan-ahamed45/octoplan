@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { updateTask, deleteTask, getTaskById } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+
   try {
     const { id } = await params;
     const task = await getTaskById(id);
@@ -17,12 +21,10 @@ export async function GET(
     }
 
     return NextResponse.json({ success: true, data: task });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch task';
     console.error('API Error /api/tasks/[id] GET:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to fetch task' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -30,6 +32,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -43,12 +48,10 @@ export async function PATCH(
     }
 
     return NextResponse.json({ success: true, data: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to update task';
     console.error('API Error /api/tasks/[id] PATCH:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update task' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -56,6 +59,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+
   try {
     const { id } = await params;
     const ok = await deleteTask(id);
@@ -68,11 +74,9 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true, message: 'Task deleted successfully' });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to delete task';
     console.error('API Error /api/tasks/[id] DELETE:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to delete task' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

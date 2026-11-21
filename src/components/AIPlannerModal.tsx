@@ -2,7 +2,20 @@
 
 import React, { useState } from 'react';
 import { Project, GeneratePlanResponse } from '@/types';
-import { Sparkles, Bot, AlertCircle, CheckCircle2, Loader2, X, ChevronUp, Equal, ChevronDown } from 'lucide-react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Sparkles,
+  Bot,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  X,
+  ChevronUp,
+  Equal,
+  ChevronDown,
+} from 'lucide-react';
 
 interface AIPlannerModalProps {
   project: Project;
@@ -40,8 +53,12 @@ export function AIPlannerModal({
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to generate plan');
       setGeneratedPlan(data.data);
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong while generating your project plan.');
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while generating your project plan.'
+      );
     } finally {
       setLoading(false);
     }
@@ -58,6 +75,7 @@ export function AIPlannerModal({
         body: JSON.stringify({
           projectId: project.id,
           saveToDatabase: true,
+          tasks: generatedPlan.tasks,
         }),
       });
 
@@ -65,41 +83,36 @@ export function AIPlannerModal({
       if (!data.success) throw new Error(data.error || 'Failed to apply plan');
       onPlanApplied();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to save generated tasks.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save generated tasks.');
     } finally {
       setApplying(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+      <Card className="w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
+            <div className="p-2 rounded-lg bg-muted text-foreground">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">AI Sprint Planner</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Architectural backlog synthesis for "{project.name}"
+              <CardTitle className="text-sm font-semibold">AI Sprint Planner</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Architectural backlog synthesis for &ldquo;{project.name}&rdquo;
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
+            <X className="w-4 h-4" />
+          </Button>
+        </CardHeader>
 
-        {/* Body Content */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1">
+        <CardContent className="overflow-y-auto space-y-4 flex-1 py-2">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
@@ -107,35 +120,32 @@ export function AIPlannerModal({
 
           {!generatedPlan && !loading && (
             <div className="text-center py-8 space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 flex items-center justify-center mx-auto text-blue-600 dark:text-blue-400">
-                <Bot className="w-7 h-7" />
+              <div className="w-12 h-12 rounded-xl bg-muted border border-border flex items-center justify-center mx-auto text-foreground">
+                <Bot className="w-6 h-6" />
               </div>
               <div className="max-w-md mx-auto">
-                <h4 className="font-bold text-slate-900 dark:text-white text-base mb-1">
+                <h4 className="font-semibold text-foreground text-base mb-1">
                   Synthesize Sprint Backlog
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   Analyze project specifications and generate architectural user stories, tasks, and priority mappings.
                 </p>
               </div>
-              <button
-                onClick={handleGeneratePlan}
-                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all"
-              >
+              <Button onClick={handleGeneratePlan} size="lg">
                 <Sparkles className="w-4 h-4" />
                 <span>Generate Backlog with AI</span>
-              </button>
+              </Button>
             </div>
           )}
 
           {loading && (
             <div className="text-center py-12 space-y-3">
-              <Loader2 className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin mx-auto" />
+              <Loader2 className="w-7 h-7 text-foreground animate-spin mx-auto" />
               <div>
-                <h4 className="font-semibold text-slate-900 dark:text-white text-sm">
+                <h4 className="font-semibold text-foreground text-sm">
                   AI Architect is analyzing requirements...
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Calculating architectural layers and estimation priorities.
                 </p>
               </div>
@@ -144,81 +154,76 @@ export function AIPlannerModal({
 
           {generatedPlan && !loading && (
             <div className="space-y-3.5 animate-fade-in">
-              <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
-                <span className="font-bold block mb-1">Architectural Overview:</span>
+              <div className="p-3.5 rounded-xl bg-muted/60 border border-border text-xs text-foreground leading-relaxed">
+                <span className="font-semibold block mb-1">Architectural Overview:</span>
                 {generatedPlan.project_overview}
               </div>
 
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                   Generated Issues ({generatedPlan.tasks.length})
                 </h4>
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {generatedPlan.tasks.map((task, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 flex items-start justify-between"
+                      className="p-3 rounded-lg bg-muted/40 border border-border flex items-start justify-between gap-3"
                     >
-                      <div className="pr-3">
+                      <div>
                         <div className="flex items-center space-x-2 mb-1">
-                          <span className="font-semibold text-slate-900 dark:text-white text-xs">
+                          <span className="font-medium text-foreground text-xs">
                             {idx + 1}. {task.title}
                           </span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                          <Badge variant="secondary" className="text-[10px]">
                             {task.category}
-                          </span>
+                          </Badge>
                         </div>
-                        <p className="text-slate-500 dark:text-slate-400 text-[11px] line-clamp-2">
+                        <p className="text-muted-foreground text-[11px] line-clamp-2">
                           {task.description}
                         </p>
                       </div>
 
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded flex items-center space-x-1 flex-shrink-0 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                        {task.priority === 'HIGH' && <ChevronUp className="w-3.5 h-3.5 text-rose-600 stroke-[3]" />}
-                        {task.priority === 'MEDIUM' && <Equal className="w-3.5 h-3.5 text-amber-600 stroke-[3]" />}
-                        {task.priority === 'LOW' && <ChevronDown className="w-3.5 h-3.5 text-blue-600 stroke-[3]" />}
+                      <Badge variant="outline" className="text-[10px] font-semibold flex-shrink-0 gap-1">
+                        {task.priority === 'HIGH' && (
+                          <ChevronUp className="w-3.5 h-3.5 text-rose-600 stroke-[2.5]" />
+                        )}
+                        {task.priority === 'MEDIUM' && (
+                          <Equal className="w-3.5 h-3.5 text-amber-600 stroke-[2.5]" />
+                        )}
+                        {task.priority === 'LOW' && (
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground stroke-[2.5]" />
+                        )}
                         <span>{task.priority}</span>
-                      </span>
+                      </Badge>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
           )}
-        </div>
+        </CardContent>
 
-        {/* Footer Actions */}
         {generatedPlan && !loading && (
-          <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between">
-            <button
-              onClick={handleGeneratePlan}
-              className="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            >
+          <CardFooter className="flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={handleGeneratePlan}>
               Regenerate
-            </button>
+            </Button>
             <div className="flex items-center space-x-2">
-              <button
-                onClick={onClose}
-                className="px-3.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
-              >
+              <Button variant="outline" size="sm" onClick={onClose}>
                 Cancel
-              </button>
-              <button
-                onClick={handleApplyToProject}
-                disabled={applying}
-                className="inline-flex items-center space-x-1.5 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm transition-all disabled:opacity-50"
-              >
+              </Button>
+              <Button size="sm" onClick={handleApplyToProject} disabled={applying}>
                 {applying ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 )}
                 <span>{applying ? 'Applying...' : 'Apply to Board'}</span>
-              </button>
+              </Button>
             </div>
-          </div>
+          </CardFooter>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

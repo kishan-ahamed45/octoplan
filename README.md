@@ -1,58 +1,92 @@
-# 🚀 AI Project Manager
+# 🐙 OctoPlan
 
-An enterprise-grade, intelligent project management platform with **WSO2 Asgardeo Authentication**, **Autonomous AI Agent tool execution**, and **interactive Agile Kanban boards**.
+> **Open-source, self-hosted AI project workspace.**  
+> *Plan sprints, manage Kanban boards, and let an AI Agile Lead juggle your backlog—hosted on your own server.*
 
----
+![Status](https://img.shields.io/badge/release-v1.0-blue)
+![Status](https://img.shields.io/badge/v2-in_active_development-amber)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## ✨ Features
-
-- 🔐 **WSO2 Asgardeo Authentication**: Secure enterprise sign-in via OpenID Connect (OIDC) and Google Social Login.
-- 🤖 **Autonomous AI Agent**: Multi-turn AI assistant with direct database tool calling (`create_task`, `update_task`, `delete_task`, `get_project_statistics`).
-- ⚡ **AI Project Planner**: Generates full engineering backlogs and architectures from a single prompt.
-- 📋 **Interactive Kanban & List Views**: Real-time task board with drag-and-drop status workflows and priority filters.
-- 🌓 **Instant Dark / Light Mode**: Sleek modern UI with persistent theme switching.
+**OctoPlan** is built for organizations and engineering teams that want an intelligent alternative to Jira/Linear without vendor lock-in. Clone the repo, spin it up locally or via Docker, and keep your projects, tasks, and AI workflows under your own control.
 
 ---
 
-## 🚀 Quick Setup
+## ✨ v1 Features (Available Now)
 
-### 1. Install Dependencies
-```bash
-npm install
-```
-
-### 2. Configure Environment Variables
-Create a `.env.local` file in the root directory:
-
-```env
-# Google Gemini AI Key
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# WSO2 Asgardeo Configuration
-ASGARDEO_CLIENT_ID=your_asgardeo_client_id
-ASGARDEO_CLIENT_SECRET=your_asgardeo_client_secret
-ASGARDEO_BASE_URL=https://api.asgardeo.io/t/devspark
-ASGARDEO_REDIRECT_URL=http://localhost:3000
-
-# Supabase PostgreSQL (Optional - local fallback runs automatically if omitted)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-```
-
-### 3. Run the App
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to access the application.
+- 🔐 **Self-Hosted Authentication**: Built-in email/password signup & login with `scrypt` password hashing and HTTP-only signed session cookies (first user becomes Workspace Admin), plus a **1-click Demo Workspace** mode—zero external auth SaaS required.
+- 🤖 **Autonomous AI Project Agent**: Interactive AI assistant with tool-calling execution (`get_tasks`, `create_task`, `update_task`, `delete_task`, `get_project_statistics`).
+- ⚡ **AI Sprint Planner**: Generates structured engineering backlogs and architectural overviews from your project description and applies them directly to your board.
+- 🧠 **Flexible Multi-Provider AI**:
+  - **Local / Private AI**: Connect your own **Ollama** instance (`OLLAMA_BASE_URL`) so project data never leaves your network.
+  - **Cloud AI**: Supports **Google Gemini** (`GEMINI_API_KEY`) and **OpenRouter** (`OPENROUTER_API_KEY`).
+  - **Offline Fallback**: Built-in deterministic planner & rule-based assistant works even with zero API keys.
+- 📋 **Interactive Kanban & Table Views**: Drag-and-drop status workflows (`TODO` → `IN_PROGRESS` → `COMPLETED`), priority indicators, and real-time project progress metrics.
+- 💾 **Zero-Config Storage or PostgreSQL**: Runs immediately with persistent local storage (`.local-db.json` / Docker volume) or connects to **Supabase PostgreSQL** via `supabase/schema.sql`.
+- 🌓 **Dark / Light Mode**: Clean, responsive UI built with Tailwind CSS.
 
 ---
 
-## 🛠️ Tech Stack
+## 🚀 Quick Start
 
-- **Framework**: Next.js 16 (App Router) + React 19 + TypeScript
-- **Auth**: WSO2 Asgardeo (`@asgardeo/nextjs`)
-- **AI**: Google Gemini API (Agent Tool Calling)
-- **Database**: Supabase / PostgreSQL (with local fallback storage)
-- **Styling**: Tailwind CSS + Lucide Icons
+### Option A: Run Locally (Node.js)
+
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Edit `.env.local` if you want to add `OLLAMA_BASE_URL`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, or Supabase credentials (optional—OctoPlan runs out of the box with zero keys).
+
+3. **Start the dev server**
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000), create your Workspace Admin account, or click **Launch Demo Workspace**.
+
+---
+
+### Option B: Self-Host with Docker Compose
+
+1. **Standard self-hosted run**
+   ```bash
+   docker compose up -d --build
+   ```
+   App runs at `http://localhost:3000` with persistent storage in the `octoplan_data` volume.
+
+2. **Self-hosted with 100% private local AI (Ollama)**
+   ```bash
+   OLLAMA_BASE_URL=http://ollama:11434 OLLAMA_MODEL=llama3.1 docker compose --profile local-ai up -d --build
+   docker exec -it octoplan-ollama ollama pull llama3.1
+   ```
+
+---
+
+## 🛠️ Tech Stack (v1)
+
+- **Frontend & BFF**: Next.js 16 (App Router) + React 19 + TypeScript
+- **Authentication**: Built-in `scrypt` + HMAC-SHA256 HTTP-only cookie sessions
+- **AI Layer**: Multi-provider engine (Ollama, Google Gemini SDK `@google/genai`, OpenRouter, offline fallback)
+- **Database**: Supabase / PostgreSQL (with automatic local file persistence fallback)
+- **Styling**: Tailwind CSS v4 + shadcn/ui (Nova + Neutral) + Lucide Icons
+- **Deployment**: Docker standalone build + Docker Compose
+
+---
+
+## 🗺️ v2 Roadmap (In Active Development)
+
+OctoPlan is actively evolving into a full self-hosted collaboration & AI engineering suite:
+
+- [ ] 🐍 **Python FastAPI AI Engine**: Dedicated microservice for async AI jobs, `pgvector` semantic search/RAG across project history, and PydanticAI/LangGraph agent orchestration.
+- [ ] 💬 **Real-Time Team Chat & Live Board Sync**: Project chat channels and instant Kanban board updates powered by WebSockets + Redis Pub/Sub.
+- [ ] 🎥 **Self-Hosted Video Meetings + AI Meeting Notes**: Built-in team video calls via **LiveKit** with automated transcription and AI-generated Kanban tasks from meeting discussions.
+- [ ] 🔑 **Optional Enterprise SSO**: Pluggable OIDC/OAuth support (Keycloak, Authentik, GitHub) alongside built-in auth.
+
+---
+
+## 📄 License
+
+Open-source under the [MIT License](LICENSE).
