@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,9 +76,13 @@ export function AuthScreen() {
       {/* Left Brand Showcase Panel */}
       <div className="hidden lg:flex flex-col justify-between p-10 bg-neutral-950 text-neutral-100 border-r border-neutral-800">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-white text-neutral-950 flex items-center justify-center text-lg">
-            🐙
-          </div>
+          <Image
+            src="/octoplan-logo.jpg"
+            alt="OctoPlan"
+            width={36}
+            height={36}
+            className="w-9 h-9 rounded-xl object-cover"
+          />
           <span className="text-base font-semibold tracking-tight text-white">OctoPlan</span>
           <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 border border-neutral-700">
             Self-Hosted v1
@@ -135,9 +140,13 @@ export function AuthScreen() {
         <div className="w-full max-w-md space-y-5">
           {/* Mobile Brand Header */}
           <div className="lg:hidden text-center space-y-2">
-            <div className="w-11 h-11 rounded-xl bg-primary text-primary-foreground text-xl flex items-center justify-center mx-auto">
-              🐙
-            </div>
+            <Image
+              src="/octoplan-logo.jpg"
+              alt="OctoPlan"
+              width={44}
+              height={44}
+              className="w-11 h-11 rounded-xl object-cover mx-auto"
+            />
             <div className="flex items-center justify-center gap-2">
               <h1 className="text-xl font-semibold tracking-tight">OctoPlan</h1>
               <Badge variant="secondary" className="text-[10px] uppercase">
