@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
+import { GoogleGenAI, Type, FunctionDeclaration, Content } from '@google/genai';
 import {
   getProjectById,
   getTasks,
@@ -8,12 +8,109 @@ import {
 } from './db';
 import { GeneratePlanResponse, TaskPriority, TaskStatus } from '@/types';
 
-const geminiApiKey = process.env.GEMINI_API_KEY || '';
-const openRouterApiKey = process.env.OPENROUTER_API_KEY || '';
-const openRouterModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
+const ollamaBaseUrl = (process.env.OLLAMA_BASE_URL || '').trim().replace(/\/$/, '');
+const ollamaModel = (process.env.OLLAMA_MODEL || 'llama3.1').trim();
+const geminiApiKey = (process.env.GEMINI_API_KEY || '').trim();
+const openRouterApiKey = (process.env.OPENROUTER_API_KEY || '').trim();
+const openRouterModel = (process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free').trim();
 
-// Initialize Google GenAI client if key exists
 const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
+
+interface OpenAICompatibleConfig {
+  endpoint: string;
+  model: string;
+  apiKey?: string;
+  extraHeaders?: Record<string, string>;
+}
+
+interface OpenAIToolCall {
+  id: string;
+  function?: {
+    name?: string;
+    arguments?: string | Record<string, unknown>;
+  };
+}
+
+interface OpenAIChatResponse {
+  choices?: Array<{
+    message?: {
+      role?: string;
+      content?: string | null;
+      tool_calls?: OpenAIToolCall[];
+    };
+  }>;
+}
+
+function getOpenAICompatibleConfigs(): OpenAICompatibleConfig[] {
+  const configs: OpenAICompatibleConfig[] = [];
+
+  if (ollamaBaseUrl) {
+    configs.push({
+      endpoint: `${ollamaBaseUrl}/v1/chat/completions`,
+      model: ollamaModel,
+    });
+  }
+
+  if (openRouterApiKey) {
+    configs.push({
+      endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+      model: openRouterModel,
+      apiKey: openRouterApiKey,
+      extraHeaders: {
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'OctoPlan',
+      },
+    });
+  }
+
+  return configs;
+}
+
+async function callOpenAICompatibleChat(
+  config: OpenAICompatibleConfig,
+  payload: Record<string, unknown>
+): Promise<OpenAIChatResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...config.extraHeaders,
+  };
+  if (config.apiKey) {
+    headers.Authorization = `Bearer ${config.apiKey}`;
+  }
+
+  const res = await fetch(config.endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: config.model,
+      ...payload,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.statusText);
+    throw new Error(`AI provider error (${res.status}): ${errText}`);
+  }
+
+  return res.json();
+}
+
+function parseJsonFromContent(content: string): GeneratePlanResponse | null {
+  try {
+    const cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    const jsonText =
+      firstBrace !== -1 && lastBrace !== -1 ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned;
+    const parsed = JSON.parse(jsonText) as GeneratePlanResponse;
+    if (parsed && Array.isArray(parsed.tasks)) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // ==========================================
 // 1. AI Project Planner
@@ -51,47 +148,31 @@ Return STRICT JSON in the following schema:
   ]
 }`;
 
-  // 1. Try OpenRouter if configured
-  if (openRouterApiKey) {
+  // 1. Try OpenAI-compatible providers (Ollama local AI, then OpenRouter)
+  for (const config of getOpenAICompatibleConfigs()) {
     try {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openRouterApiKey}`,
-          'HTTP-Referer': 'http://localhost:3000',
-          'X-Title': 'AI Project Manager',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: openRouterModel,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert software architect. You output ONLY valid JSON.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          response_format: { type: 'json_object' },
-        }),
+      const data = await callOpenAICompatibleChat(config, {
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert software architect. You output ONLY valid JSON.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        response_format: { type: 'json_object' },
       });
 
-      const data = await res.json();
       const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        // Extract JSON from potential code blocks if any
-        const cleaned = content.replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(cleaned) as GeneratePlanResponse;
-        if (parsed && parsed.tasks) return parsed;
+      if (typeof content === 'string') {
+        const parsed = parseJsonFromContent(content);
+        if (parsed) return parsed;
       }
     } catch (err) {
-      console.error('OpenRouter plan generation error:', err);
+      console.error(`Plan generation error (${config.endpoint}):`, err);
     }
   }
 
-  // 2. Try Gemini direct if configured
+  // 2. Try Google Gemini direct if configured
   if (ai && geminiApiKey) {
     try {
       const response = await ai.models.generateContent({
@@ -125,20 +206,19 @@ Return STRICT JSON in the following schema:
         },
       });
 
-      const text = response.text;
-      if (text) {
-        return JSON.parse(text) as GeneratePlanResponse;
+      if (response.text) {
+        return JSON.parse(response.text) as GeneratePlanResponse;
       }
     } catch (error) {
       console.error('Gemini plan generation error:', error);
     }
   }
 
-  // 3. Fallback
-  return getFallbackPlan(projectName, projectDescription);
+  // 3. Deterministic offline fallback
+  return getFallbackPlan(projectName);
 }
 
-function getFallbackPlan(name: string, description: string): GeneratePlanResponse {
+function getFallbackPlan(name: string): GeneratePlanResponse {
   return {
     project_overview: `Strategic roadmap for ${name}. This plan focuses on core MVP delivery, data integrity, user authentication, and seamless user experience.`,
     tasks: [
@@ -167,14 +247,14 @@ function getFallbackPlan(name: string, description: string): GeneratePlanRespons
         category: 'Frontend',
       },
       {
-        title: 'Integrate Third-Party Services & Webhooks',
-        description: 'Connect external payment gateways, notification dispatchers, or external APIs.',
+        title: 'Integrate Webhooks & Background Jobs',
+        description: 'Connect notification dispatchers, async pipelines, or external integrations.',
         priority: 'MEDIUM',
         category: 'Full Stack',
       },
       {
-        title: 'End-to-End Testing & Production Deployment',
-        description: 'Perform unit tests, integration validation, and configure automated CI/CD deployment.',
+        title: 'End-to-End Testing & Docker Deployment',
+        description: 'Perform integration validation and configure automated self-hosted container deployment.',
         priority: 'MEDIUM',
         category: 'DevOps',
       },
@@ -264,6 +344,66 @@ const openAITools = [
   },
 ];
 
+const geminiFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: 'get_project_details',
+    description: 'Retrieve details and statistics for current project.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'get_tasks',
+    description: 'Retrieve all tasks associated with current project.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'get_project_statistics',
+    description: 'Calculate and return current project completion percentage and pending stats.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'create_task',
+    description: 'Create a new task in the database for the project.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'The title of the task.' },
+        description: { type: Type.STRING, description: 'Description of the task.' },
+        priority: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH'], description: 'Priority.' },
+        category: { type: Type.STRING, description: 'Category (e.g. Backend, Frontend, Security).' },
+        status: { type: Type.STRING, enum: ['TODO', 'IN_PROGRESS', 'COMPLETED'], description: 'Status (default TODO).' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'update_task',
+    description: 'Update an existing task status, priority, or details.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        taskId: { type: Type.STRING, description: 'Unique ID of the task.' },
+        title: { type: Type.STRING },
+        description: { type: Type.STRING },
+        status: { type: Type.STRING, enum: ['TODO', 'IN_PROGRESS', 'COMPLETED'] },
+        priority: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH'] },
+        category: { type: Type.STRING },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'delete_task',
+    description: 'Delete a task from the project.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        taskId: { type: Type.STRING, description: 'The ID of the task to delete.' },
+      },
+      required: ['taskId'],
+    },
+  },
+];
+
 export interface AgentExecutionResult {
   message: string;
   actionsExecuted: {
@@ -285,8 +425,10 @@ export async function runAgentConversation(
     return { message: 'Error: Project not found.', actionsExecuted: [] };
   }
 
-  // Unified Tool Executor
-  async function executeTool(toolName: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async function executeTool(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     switch (toolName) {
       case 'get_project_details': {
         const p = await getProjectById(projectId);
@@ -350,7 +492,7 @@ export async function runAgentConversation(
           toolName: 'update_task',
           details: updated
             ? `Updated task "${updated.title}" -> Status: ${updated.status}`
-            : `Task not found`,
+            : 'Task not found',
           result: updated ? { id: updated.id, status: updated.status } : null,
         });
 
@@ -361,7 +503,7 @@ export async function runAgentConversation(
         const ok = await deleteTask(taskId);
         actionsExecuted.push({
           toolName: 'delete_task',
-          details: ok ? `Deleted task ID ${taskId}` : `Failed to delete task`,
+          details: ok ? `Deleted task ID ${taskId}` : 'Failed to delete task',
         });
         return { success: ok };
       }
@@ -370,7 +512,7 @@ export async function runAgentConversation(
     }
   }
 
-  const systemInstruction = `You are an elite, proactive AI Project Manager & Agile Lead for "${project.name}".
+  const systemInstruction = `You are OctoPlan AI, an elite, proactive AI Project Manager & Agile Lead for "${project.name}".
 Project Description: "${project.description}"
 Active Project ID: "${projectId}"
 
@@ -380,52 +522,36 @@ Guidelines:
 2. When asked to create, update, or delete tasks, use the tools immediately and confirm the action.
 3. Be professional, direct, and concise.`;
 
-  // 1. Run with OpenRouter if configured
-  if (openRouterApiKey) {
+  // 1. Try OpenAI-compatible providers (Ollama local AI, then OpenRouter)
+  for (const config of getOpenAICompatibleConfigs()) {
     try {
-      const openAIMessages: any[] = [
+      const openAIMessages: Record<string, unknown>[] = [
         { role: 'system', content: systemInstruction },
         ...chatHistory.slice(-6).map((m) => ({ role: m.role, content: m.content })),
         { role: 'user', content: userMessage },
       ];
 
-      let loopCount = 0;
-      while (loopCount < 4) {
-        loopCount++;
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openRouterApiKey}`,
-            'HTTP-Referer': 'http://localhost:3000',
-            'X-Title': 'AI Project Manager',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: openRouterModel,
-            messages: openAIMessages,
-            tools: openAITools,
-            tool_choice: 'auto',
-          }),
+      for (let loop = 0; loop < 4; loop++) {
+        const data = await callOpenAICompatibleChat(config, {
+          messages: openAIMessages,
+          tools: openAITools,
+          tool_choice: 'auto',
         });
 
-        const data = await res.json();
-        const choice = data.choices?.[0];
-        const message = choice?.message;
-
+        const message = data.choices?.[0]?.message;
         if (!message) break;
 
-        if (message.tool_calls && message.tool_calls.length > 0) {
+        if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
           openAIMessages.push(message);
-
           for (const toolCall of message.tool_calls) {
-            const funcName = toolCall.function.name;
+            const funcName = toolCall.function?.name || '';
             let args: Record<string, unknown> = {};
             try {
-              args = JSON.parse(toolCall.function.arguments || '{}');
+              const rawArgs = toolCall.function?.arguments;
+              args = typeof rawArgs === 'string' ? JSON.parse(rawArgs || '{}') : (rawArgs || {});
             } catch {}
 
             const toolResult = await executeTool(funcName, args);
-
             openAIMessages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -440,15 +566,68 @@ Guidelines:
         }
       }
     } catch (err) {
-      console.error('OpenRouter Agent Error:', err);
+      console.error(`Agent error (${config.endpoint}):`, err);
     }
   }
 
-  // 2. Fallback to smart rule-based agent
+  // 2. Try Google Gemini direct with function calling
+  if (ai && geminiApiKey) {
+    try {
+      const contents: Content[] = [
+        ...chatHistory.slice(-6).map((m) => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }],
+        })),
+        { role: 'user', parts: [{ text: userMessage }] },
+      ];
+
+      for (let loop = 0; loop < 4; loop++) {
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents,
+          config: {
+            systemInstruction,
+            tools: [{ functionDeclarations: geminiFunctionDeclarations }],
+          },
+        });
+
+        const calls = response.functionCalls;
+        if (calls && calls.length > 0) {
+          const modelParts = response.candidates?.[0]?.content?.parts;
+          if (modelParts) {
+            contents.push({ role: 'model', parts: modelParts });
+          }
+
+          const toolResponseParts = [];
+          for (const call of calls) {
+            const toolResult = await executeTool(
+              call.name || '',
+              (call.args || {}) as Record<string, unknown>
+            );
+            toolResponseParts.push({
+              functionResponse: {
+                name: call.name || '',
+                response: toolResult,
+              },
+            });
+          }
+          contents.push({ role: 'user', parts: toolResponseParts });
+        } else {
+          return {
+            message: response.text || 'I have completed your request.',
+            actionsExecuted,
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Gemini Agent Error:', err);
+    }
+  }
+
+  // 3. Fallback to smart rule-based agent
   return runFallbackAgent(projectId, userMessage, actionsExecuted);
 }
 
-// Smart rule-based agent fallback
 async function runFallbackAgent(
   projectId: string,
   userMessage: string,
@@ -463,12 +642,18 @@ async function runFallbackAgent(
     let title = 'New Feature Implementation';
     const match =
       userMessage.match(/(?:task (?:for|to|called)?\s*["']?([^"'.]+)["']?)/i) ||
-      userMessage.match(/create (?:a )?(?:high-priority |medium-priority |low-priority )?task (?:for |to )?["']?([^"'.]+)["']?/i);
+      userMessage.match(
+        /create (?:a )?(?:high-priority |medium-priority |low-priority )?task (?:for |to )?["']?([^"'.]+)["']?/i
+      );
     if (match && match[1]) {
       title = match[1].trim();
     }
 
-    const priority: TaskPriority = lower.includes('high') ? 'HIGH' : lower.includes('low') ? 'LOW' : 'MEDIUM';
+    const priority: TaskPriority = lower.includes('high')
+      ? 'HIGH'
+      : lower.includes('low')
+      ? 'LOW'
+      : 'MEDIUM';
     const category = lower.includes('auth')
       ? 'Security'
       : lower.includes('ui') || lower.includes('design')
@@ -478,7 +663,7 @@ async function runFallbackAgent(
     const created = await createTask({
       project_id: projectId,
       title,
-      description: `Task created via AI Assistant based on prompt: "${userMessage}"`,
+      description: `Task created via OctoPlan AI Assistant based on prompt: "${userMessage}"`,
       priority,
       category,
       status: 'TODO',
@@ -559,7 +744,7 @@ async function runFallbackAgent(
   });
 
   return {
-    message: `I'm your AI Project Manager for **${project?.name || 'this project'}**. I have full context of your tasks and board status. You can ask me to:\n- 🎯 *Recommend what to work on next*\n- ➕ *Create a high-priority task (e.g. "Create a task for user onboarding")*\n- 📈 *Summarize progress and statistics*\n- 🔄 *Update or reorganize tasks*`,
+    message: `I'm OctoPlan AI for **${project?.name || 'this project'}**. I have full context of your tasks and board status. You can ask me to:\n- 🎯 *Recommend what to work on next*\n- ➕ *Create a high-priority task (e.g. "Create a task for user onboarding")*\n- 📈 *Summarize progress and statistics*\n- 🔄 *Update or reorganize tasks*`,
     actionsExecuted,
   };
 }

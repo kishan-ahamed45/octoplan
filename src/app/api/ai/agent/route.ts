@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
-import { runAgentConversation } from '@/lib/gemini';
+import { runAgentConversation } from '@/lib/ai';
 import { getProjectById } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+
   try {
     const body = await request.json();
     const { projectId, message, chatHistory } = body;
@@ -38,11 +42,9 @@ export async function POST(request: Request) {
         actionsExecuted: result.actionsExecuted,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Agent failed to process request';
     console.error('API Error /api/ai/agent:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Agent failed to process request' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

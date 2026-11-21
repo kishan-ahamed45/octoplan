@@ -11,14 +11,18 @@ import {
   UpdateTaskInput,
   TaskStatus,
   TaskPriority,
+  UserRecord,
 } from '@/types';
 import fs from 'fs';
 import path from 'path';
 
 // Local file-backed database storage fallback
-const LOCAL_DB_PATH = path.join(process.cwd(), '.local-db.json');
+const LOCAL_DB_PATH = process.env.OCTOPLAN_DB_PATH
+  ? path.resolve(process.env.OCTOPLAN_DB_PATH)
+  : path.join(process.cwd(), '.local-db.json');
 
 interface LocalDB {
+  users: UserRecord[];
   projects: Project[];
   tasks: Task[];
   activity_logs: ActivityLog[];
@@ -105,6 +109,7 @@ function getInitialLocalDB(): LocalDB {
   ];
 
   return {
+    users: [],
     projects: [demoProject],
     tasks: demoTasks,
     activity_logs: demoLogs,
@@ -115,11 +120,18 @@ function readLocalDB(): LocalDB {
   try {
     if (!fs.existsSync(LOCAL_DB_PATH)) {
       const initial = getInitialLocalDB();
+      fs.mkdirSync(path.dirname(LOCAL_DB_PATH), { recursive: true });
       fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(initial, null, 2), 'utf-8');
       return initial;
     }
     const data = fs.readFileSync(LOCAL_DB_PATH, 'utf-8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data) as Partial<LocalDB>;
+    return {
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+      activity_logs: Array.isArray(parsed.activity_logs) ? parsed.activity_logs : [],
+    };
   } catch {
     return getInitialLocalDB();
   }
@@ -127,6 +139,7 @@ function readLocalDB(): LocalDB {
 
 function writeLocalDB(db: LocalDB): void {
   try {
+    fs.mkdirSync(path.dirname(LOCAL_DB_PATH), { recursive: true });
     fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error writing to local DB fallback:', err);
@@ -521,11 +534,137 @@ export async function getActivityLogs(projectId: string): Promise<ActivityLog[]>
 }
 
 // ==========================================
+// User Operations (Self-Hosted Auth)
+// ==========================================
+
+export async function getUserByEmail(email: string): Promise<UserRecord | null> {
+  const normalized = email.trim().toLowerCase();
+
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalized)
+      .single();
+
+    if (error || !data) return null;
+    return data as UserRecord;
+  }
+
+  const db = readLocalDB();
+  return db.users.find((u) => u.email.toLowerCase() === normalized) || null;
+}
+
+export async function getUserById(id: string): Promise<UserRecord | null> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    return data as UserRecord;
+  }
+
+  const db = readLocalDB();
+  return db.users.find((u) => u.id === id) || null;
+}
+
+export async function getUserCount(): Promise<number> {
+  if (isSupabaseConfigured && supabase) {
+    const { count } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+    return count || 0;
+  }
+
+  const db = readLocalDB();
+  return db.users.length;
+}
+
+export async function createUser(input: {
+  name: string;
+  email: string;
+  password_hash: string;
+  role?: string;
+}): Promise<UserRecord> {
+  const now = new Date().toISOString();
+  const normalizedEmail = input.email.trim().toLowerCase();
+  const role = input.role || 'Member';
+
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        name: input.name.trim(),
+        email: normalizedEmail,
+        password_hash: input.password_hash,
+        role,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data as UserRecord;
+  }
+
+  const db = readLocalDB();
+  const newUser: UserRecord = {
+    id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    name: input.name.trim(),
+    email: normalizedEmail,
+    password_hash: input.password_hash,
+    role,
+    created_at: now,
+  };
+
+  db.users.push(newUser);
+  writeLocalDB(db);
+  return newUser;
+}
+
+// ==========================================
 // Reset / Seed Demo Project
 // ==========================================
 
 export async function seedDemoProject(): Promise<Project> {
-  const db = getInitialLocalDB();
-  writeLocalDB(db);
-  return db.projects[0];
+  const initial = getInitialLocalDB();
+
+  if (isSupabaseConfigured && supabase) {
+    const demo = initial.projects[0];
+    const { data: createdProject, error: pError } = await supabase
+      .from('projects')
+      .insert({
+        name: demo.name,
+        description: demo.description,
+      })
+      .select()
+      .single();
+
+    if (pError) throw new Error(pError.message);
+
+    await createBatchTasks(
+      createdProject.id,
+      initial.tasks.map((t) => ({
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        priority: t.priority,
+        category: t.category,
+      }))
+    );
+
+    return createdProject;
+  }
+
+  const existing = readLocalDB();
+  const nextDb: LocalDB = {
+    users: existing.users,
+    projects: initial.projects,
+    tasks: initial.tasks,
+    activity_logs: initial.activity_logs,
+  };
+  writeLocalDB(nextDb);
+  return nextDb.projects[0];
 }

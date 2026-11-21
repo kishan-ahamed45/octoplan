@@ -1,25 +1,25 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Navbar } from '@/components/Navbar';
+import { AppShell } from '@/components/AppShell';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
-import { AsgardeoDirectRedirect } from '@/components/AsgardeoDirectRedirect';
+import { AuthScreen } from '@/components/AuthScreen';
 import { useAuth } from '@/context/AuthContext';
 import { ProjectWithStats } from '@/types';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import {
   FolderKanban,
-  Plus,
-  ArrowRight,
-  TrendingUp,
+  ArrowUpRight,
   Layers,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   Trash2,
   Search,
-  Users,
-  Loader2,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/projects');
@@ -43,12 +43,29 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (isSignedIn) {
-      fetchProjects();
-    }
+    if (!isSignedIn) return;
+    let cancelled = false;
+
+    fetch('/api/projects')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data.success) {
+          setProjects(data.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch projects:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isSignedIn]);
 
   const handleDeleteProject = async (id: string, name: string, e: React.MouseEvent) => {
@@ -70,7 +87,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Global metrics
   const totalProjects = projects.length;
   const totalTasks = projects.reduce((acc, p) => acc + (p.stats?.totalTasks || 0), 0);
   const totalCompleted = projects.reduce((acc, p) => acc + (p.stats?.completedTasks || 0), 0);
@@ -83,200 +99,207 @@ export default function DashboardPage() {
       p.description.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (!isSignedIn) {
-    return <AsgardeoDirectRedirect />;
+  if (authLoading || !isSignedIn) {
+    return <AuthScreen />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
-      <Navbar onSeedSuccess={fetchProjects} onOpenCreateModal={() => setCreateModalOpen(true)} />
+    <AppShell
+      projects={projects}
+      breadcrumb={
+        <div className="flex items-center space-x-2">
+          <span className="text-sm font-semibold text-foreground">Projects Directory</span>
+          <Badge variant="secondary" className="text-[11px] tabular-nums">
+            {totalProjects}
+          </Badge>
+        </div>
+      }
+      primaryActionLabel="New Project"
+      onPrimaryAction={() => setCreateModalOpen(true)}
+      onSeedSuccess={fetchProjects}
+    >
+      <div className="space-y-6">
+        {/* Global Bento Metrics */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3.5">
+          <Card size="sm">
+            <CardContent className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground">Total Projects</p>
+                <p className="text-2xl font-semibold tracking-tight tabular-nums mt-0.5">
+                  {totalProjects}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-muted text-muted-foreground">
+                <FolderKanban className="w-4 h-4" />
+              </div>
+            </CardContent>
+          </Card>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Enterprise Breadcrumb & Title */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+          <Card size="sm">
+            <CardContent className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground">Backlog Issues</p>
+                <p className="text-2xl font-semibold tracking-tight tabular-nums mt-0.5">
+                  {totalTasks}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-muted text-muted-foreground">
+                <Layers className="w-4 h-4" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-medium text-muted-foreground">Completion</p>
+                <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-semibold tracking-tight tabular-nums">
+                  {overallPercentage}%
+                </span>
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {totalCompleted}/{totalTasks} done
+                </span>
+              </div>
+              <Progress value={overallPercentage} />
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardContent className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground">High Priority Open</p>
+                <p className="text-2xl font-semibold tracking-tight tabular-nums mt-0.5">
+                  {totalHighPriority}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-muted text-muted-foreground">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search & Filter Strip */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Projects Directory
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Enterprise engineering roadmaps, AI backlog synthesis & agile sprint boards
+            <h2 className="text-base font-semibold tracking-tight text-foreground">
+              Active Workspaces
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Open a sprint board to manage issues or run the AI Backlog Planner.
             </p>
           </div>
 
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create Project</span>
-          </button>
-        </div>
-
-        {/* Global Statistics Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Projects</span>
-              <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
-                <FolderKanban className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">{totalProjects}</div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Backlog Issues</span>
-              <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                <Layers className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">{totalTasks}</div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Resolved / Done</span>
-              <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">
-              {totalCompleted}{' '}
-              <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400">
-                ({overallPercentage}%)
-              </span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">High Priority Issues</span>
-              <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400">
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-1.5 text-xl font-bold text-rose-600 dark:text-rose-400">{totalHighPriority}</div>
+          <div className="relative w-full sm:w-80">
+            <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
+            <Input
+              type="text"
+              placeholder="Search projects..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 text-xs bg-background"
+            />
           </div>
         </div>
 
-        {/* Project Grid / List */}
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex items-center space-x-2">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                All Projects
-              </h2>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                {filteredProjects.length}
-              </span>
-            </div>
-
-            <div className="relative w-full sm:w-72">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Filter projects by title..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500"
-              />
-            </div>
+        {/* Full-Width Project Grid */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="h-48 animate-pulse" />
+            ))}
           </div>
-
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 animate-pulse"
-                />
-              ))}
-            </div>
-          ) : filteredProjects.length === 0 ? (
-            <div className="p-12 rounded-xl bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+        ) : filteredProjects.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center space-y-3">
+              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mx-auto text-muted-foreground">
                 <FolderKanban className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">No projects found</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Create your project space or click "Seed Demo" to explore.
+                <h3 className="text-sm font-semibold text-foreground">No projects found</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Create your project space or click &ldquo;Seed Demo&rdquo; in the top bar.
                 </p>
               </div>
-              <button
-                onClick={() => setCreateModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
-              >
+              <Button size="sm" onClick={() => setCreateModalOpen(true)}>
                 Create Project
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredProjects.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/projects/${project.id}`}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 shadow-sm hover:shadow-md transition-all"
-                >
-                  <div>
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
-                        {project.name.slice(0, 2).toUpperCase()}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredProjects.map((project) => (
+              <Link key={project.id} href={`/projects/${project.id}`} className="group block">
+                <Card className="h-full justify-between transition-all hover:ring-foreground/25 hover:shadow-md">
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-semibold text-xs flex-shrink-0">
+                          {project.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold text-foreground truncate group-hover:underline underline-offset-4">
+                            {project.name}
+                          </h3>
+                          <p className="text-[11px] text-muted-foreground tabular-nums">
+                            {project.stats?.totalTasks || 0} issues
+                          </p>
+                        </div>
                       </div>
 
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={(e) => handleDeleteProject(project.id, project.name, e)}
                         disabled={deletingId === project.id}
                         title="Delete Project"
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                        className="text-muted-foreground hover:text-destructive opacity-60 group-hover:opacity-100"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                     </div>
 
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-1">
-                      {project.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3 leading-relaxed">
+                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                       {project.description}
                     </p>
-                  </div>
+                  </CardContent>
 
-                  <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                      <span>{project.stats?.totalTasks || 0} issues</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">
-                        {project.stats?.completionPercentage || 0}% Done
+                  <CardContent className="space-y-3 pt-3 border-t border-border">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-2 text-muted-foreground tabular-nums">
+                        <span>{project.stats?.todoTasks || 0} To Do</span>
+                        <span>·</span>
+                        <span>{project.stats?.inProgressTasks || 0} Active</span>
+                        <span>·</span>
+                        <span>{project.stats?.completedTasks || 0} Done</span>
+                      </div>
+                      <span className="font-semibold text-foreground tabular-nums">
+                        {project.stats?.completionPercentage || 0}%
                       </span>
                     </div>
 
-                    <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${Math.max(project.stats?.completionPercentage || 0, 3)}%`,
-                        }}
-                      />
-                    </div>
+                    <Progress value={project.stats?.completionPercentage || 0} />
 
-                    <div className="flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400 pt-1">
-                      <span>Open Board</span>
-                      <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                    <div className="flex items-center justify-between text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                      <span>Open Sprint Board</span>
+                      <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
       <CreateProjectModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onProjectCreated={fetchProjects}
       />
-    </div>
+    </AppShell>
   );
 }

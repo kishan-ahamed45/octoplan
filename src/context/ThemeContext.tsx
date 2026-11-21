@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useSyncExternalStore } from 'react';
 
 type Theme = 'dark' | 'light';
 
@@ -10,39 +10,56 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'dark',
+  theme: 'light',
   toggleTheme: () => {},
 });
 
+const THEME_STORAGE_KEY = 'app-theme';
+const THEME_EVENT = 'octoplan-theme-change';
+
+function subscribeTheme(callback: () => void) {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === THEME_STORAGE_KEY) callback();
+  };
+  window.addEventListener('storage', onStorage);
+  window.addEventListener(THEME_EVENT, callback);
+  return () => {
+    window.removeEventListener('storage', onStorage);
+    window.removeEventListener(THEME_EVENT, callback);
+  };
+}
+
+function getThemeSnapshot(): Theme {
+  if (typeof window === 'undefined') return 'light';
+  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return saved === 'dark' ? 'dark' : 'light';
+}
+
+function getServerThemeSnapshot(): Theme {
+  return 'light';
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
-  const [mounted, setMounted] = useState(false);
+  const theme = useSyncExternalStore(
+    subscribeTheme,
+    getThemeSnapshot,
+    getServerThemeSnapshot
+  );
 
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem('app-theme') as Theme | null;
-    if (saved && (saved === 'dark' || saved === 'light')) {
-      setTheme(saved);
-      document.documentElement.classList.toggle('dark', saved === 'dark');
-    } else {
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
   const toggleTheme = () => {
     const nextTheme: Theme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    localStorage.setItem('app-theme', nextTheme);
-    if (nextTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+    window.dispatchEvent(new Event(THEME_EVENT));
   };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {mounted ? children : <div className="dark">{children}</div>}
+      {children}
     </ThemeContext.Provider>
   );
 }

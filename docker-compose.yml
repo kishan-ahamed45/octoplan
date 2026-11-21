@@ -1,0 +1,39 @@
+services:
+  octoplan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: octoplan-web
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_SECRET=${AUTH_SECRET:-octoplan-change-me-in-production}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - OCTOPLAN_DB_PATH=/app/data/octoplan-db.json
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+    volumes:
+      - octoplan_data:/app/data
+    restart: unless-stopped
+
+  # Optional: 100% private local AI with Ollama
+  # Run with: docker compose --profile local-ai up -d
+  ollama:
+    image: ollama/ollama:latest
+    container_name: octoplan-ollama
+    profiles: ["local-ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  octoplan_data:
+  ollama_data:

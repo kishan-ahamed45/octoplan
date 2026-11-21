@@ -1,21 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getTasks, createTask, getProjectById } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 import { TaskPriority, TaskStatus } from '@/types';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+
   try {
     const { id } = await params;
     const tasks = await getTasks(id);
     return NextResponse.json({ success: true, data: tasks });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch tasks';
     console.error('API Error /api/projects/[id]/tasks GET:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to fetch tasks' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -23,6 +25,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+
   try {
     const { id: projectId } = await params;
     const project = await getProjectById(projectId);
@@ -62,11 +67,9 @@ export async function POST(
     });
 
     return NextResponse.json({ success: true, data: task }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to create task';
     console.error('API Error /api/projects/[id]/tasks POST:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create task' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

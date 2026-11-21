@@ -2,6 +2,10 @@
 
 import React, { useState } from 'react';
 import { TaskPriority, TaskStatus } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle, X, Loader2, Plus } from 'lucide-react';
 
 interface CreateTaskModalProps {
@@ -55,135 +59,124 @@ export function CreateTaskModal({
       setDescription('');
       onTaskCreated();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Error creating task');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error creating task');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/40">
-          <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
-              <PlusCircle className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+      <Card className="w-full max-w-md shadow-2xl">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 rounded-lg bg-muted text-foreground">
+              <PlusCircle className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white">Create Issue</h3>
+            <CardTitle className="text-sm font-semibold">Create Issue</CardTitle>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
+            <X className="w-4 h-4" />
+          </Button>
+        </CardHeader>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-3.5">
-          {error && (
-            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs">
-              {error}
-            </div>
-          )}
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            {error && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                {error}
+              </div>
+            )}
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Summary / Title *
-            </label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Implement JWT Authentication"
-              className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Description
-            </label>
-            <textarea
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Technical specifications, requirements, acceptance criteria..."
-              className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-2.5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Priority
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-foreground">
+                Summary / Title *
               </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500"
-              >
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500"
-              >
-                <option value="TODO">To Do</option>
-                <option value="IN_PROGRESS">In Progress</option>
-                <option value="COMPLETED">Done</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Category
-              </label>
-              <input
+              <Input
                 type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Backend"
-                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Implement JWT Authentication"
+                className="text-xs"
               />
             </div>
-          </div>
 
-          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !title.trim()}
-              className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Plus className="w-3.5 h-3.5" />
-              )}
-              <span>{loading ? 'Creating...' : 'Create'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-foreground">
+                Description
+              </label>
+              <Textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Technical specifications, requirements, acceptance criteria..."
+                className="text-xs resize-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-foreground">
+                  Priority
+                </label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                  className="h-8 w-full px-2 rounded-lg bg-background border border-input text-foreground text-xs outline-none focus-visible:border-ring"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-foreground">
+                  Status
+                </label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                  className="h-8 w-full px-2 rounded-lg bg-background border border-input text-foreground text-xs outline-none focus-visible:border-ring"
+                >
+                  <option value="TODO">To Do</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="COMPLETED">Done</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-foreground">
+                  Category
+                </label>
+                <Input
+                  type="text"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="Backend"
+                  className="text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-3 border-t border-border">
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={loading || !title.trim()}>
+                {loading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Plus className="w-3.5 h-3.5" />
+                )}
+                <span>{loading ? 'Creating...' : 'Create'}</span>
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,9 +1,21 @@
 -- ==========================================================
--- AI Project Manager - Supabase PostgreSQL Database Schema
+-- OctoPlan - Self-Hosted PostgreSQL / Supabase Schema
 -- ==========================================================
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 0. Users Table (Self-Hosted Authentication)
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'Member',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- 1. Projects Table
 CREATE TABLE IF NOT EXISTS projects (
