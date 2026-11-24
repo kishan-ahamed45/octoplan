@@ -18,9 +18,6 @@
 **OctoPlan** is built for organizations and engineering teams that want an intelligent alternative to Jira/Linear without vendor lock-in. Clone the repo, spin it up locally or via Docker, and keep your projects, tasks, and AI workflows under your own control.
 
 ---
-<img width="1917" height="1082" alt="image" src="https://github.com/user-attachments/assets/99432825-d1a4-4f6d-b01d-507ced2b1e57" />
-<img width="1907" height="1100" alt="image" src="https://github.com/user-attachments/assets/394843f6-f04f-428d-ae65-ed66565d36ab" />
-<img width="1917" height="1101" alt="image" src="https://github.com/user-attachments/assets/21a45307-bdd5-4bd8-a71c-a4d42a9ac0a9" />
 
 
 
