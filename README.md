@@ -19,6 +19,14 @@
 
 ---
 
+## 📸 Preview
+
+<img width="1917" height="1082" alt="OctoPlan Projects Dashboard" src="https://github.com/user-attachments/assets/99432825-d1a4-4f6d-b01d-507ced2b1e57" />
+<img width="1907" height="1100" alt="OctoPlan Kanban Sprint Board" src="https://github.com/user-attachments/assets/394843f6-f04f-428d-ae65-ed66565d36ab" />
+<img width="1917" height="1101" alt="OctoPlan AI Assistant" src="https://github.com/user-attachments/assets/21a45307-bdd5-4bd8-a71c-a4d42a9ac0a9" />
+
+---
+
 ## ✨ v1 Features (Available Now)
 
 - 🔐 **Self-Hosted Authentication**: Built-in email/password signup & login with `scrypt` password hashing and HTTP-only signed session cookies (first user becomes Workspace Admin), plus a **1-click Demo Workspace** mode—zero external auth SaaS required.
@@ -29,7 +37,7 @@
   - **Cloud AI**: Supports **Google Gemini** (`GEMINI_API_KEY`) and **OpenRouter** (`OPENROUTER_API_KEY`).
   - **Offline Fallback**: Built-in deterministic planner & rule-based assistant works even with zero API keys.
 - 📋 **Interactive Kanban & Table Views**: Drag-and-drop status workflows (`TODO` → `IN_PROGRESS` → `COMPLETED`), priority indicators, and real-time project progress metrics.
-- 💾 **Zero-Config Storage or PostgreSQL**: Runs immediately with persistent local storage (`.local-db.json` / Docker volume) or connects to **Supabase PostgreSQL** via `supabase/schema.sql`.
+- 💾 **Zero-Config Storage or PostgreSQL (Drizzle ORM)**: Runs immediately with persistent local storage (`.local-db.json` / Docker volume) or connects to **Neon / PostgreSQL** via `DATABASE_URL`.
 - 🌓 **Dark / Light Mode**: Clean, responsive UI built with Tailwind CSS.
 
 ---
@@ -47,9 +55,14 @@
    ```bash
    cp .env.example .env.local
    ```
-   Edit `.env.local` if you want to add `OLLAMA_BASE_URL`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, or Supabase credentials (optional—OctoPlan runs out of the box with zero keys).
+   Edit `.env.local` if you want to add `DATABASE_URL` (Neon or local PostgreSQL), `OLLAMA_BASE_URL`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY` (optional—OctoPlan runs out of the box with zero keys).
 
-3. **Start the dev server**
+3. **Push database schema (if using `DATABASE_URL`)**
+   ```bash
+   pnpm db:push
+   ```
+
+4. **Start the dev server**
    ```bash
    npm run dev
    ```
@@ -78,7 +91,7 @@
 - **Frontend & BFF**: Next.js 16 (App Router) + React 19 + TypeScript
 - **Authentication**: Built-in `scrypt` + HMAC-SHA256 HTTP-only cookie sessions
 - **AI Layer**: Multi-provider engine (Ollama, Google Gemini SDK `@google/genai`, OpenRouter, offline fallback)
-- **Database**: Supabase / PostgreSQL (with automatic local file persistence fallback)
+- **Database & ORM**: PostgreSQL (Neon / Docker) + Drizzle ORM (with automatic local file persistence fallback)
 - **Styling**: Tailwind CSS v4 + shadcn/ui (Nova + Neutral) + Lucide Icons
 - **Deployment**: Docker standalone build + Docker Compose
 

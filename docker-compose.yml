@@ -1,23 +1,42 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: octoplan-postgres
+    environment:
+      - POSTGRES_USER=octoplan
+      - POSTGRES_PASSWORD=octoplan
+      - POSTGRES_DB=octoplan
+    ports:
+      - "5432:5432"
+    volumes:
+      - octoplan_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U octoplan -d octoplan"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   octoplan:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: octoplan-web
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
       - AUTH_SECRET=${AUTH_SECRET:-octoplan-change-me-in-production}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://octoplan:octoplan@db:5432/octoplan}
       - OCTOPLAN_DB_PATH=/app/data/octoplan-db.json
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
     volumes:
       - octoplan_data:/app/data
     restart: unless-stopped
@@ -35,5 +54,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  octoplan_pg_data:
   octoplan_data:
   ollama_data:

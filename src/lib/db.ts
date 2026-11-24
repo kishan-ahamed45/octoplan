@@ -1,4 +1,12 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { desc, eq, count } from 'drizzle-orm';
+import {
+  pgDb,
+  isDatabaseConfigured,
+  users,
+  projects,
+  tasks,
+  activityLogs,
+} from '@/db';
 import {
   Project,
   Task,
@@ -16,7 +24,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 
-// Local file-backed database storage fallback
+// Local file-backed database storage fallback when DATABASE_URL is not configured
 const LOCAL_DB_PATH = process.env.OCTOPLAN_DB_PATH
   ? path.resolve(process.env.OCTOPLAN_DB_PATH)
   : path.join(process.cwd(), '.local-db.json');
@@ -28,6 +36,31 @@ interface LocalDB {
   activity_logs: ActivityLog[];
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(id: string): boolean {
+  return UUID_REGEX.test(id);
+}
+
+function normalizeTask(row: typeof tasks.$inferSelect): Task {
+  return {
+    id: row.id,
+    project_id: row.project_id,
+    title: row.title,
+    description: row.description,
+    status: (['TODO', 'IN_PROGRESS', 'COMPLETED'].includes(row.status)
+      ? row.status
+      : 'TODO') as TaskStatus,
+    priority: (['LOW', 'MEDIUM', 'HIGH'].includes(row.priority)
+      ? row.priority
+      : 'MEDIUM') as TaskPriority,
+    category: row.category,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 function getInitialLocalDB(): LocalDB {
   const initialProjectId = 'demo-project-ecom-101';
   const now = new Date().toISOString();
@@ -35,7 +68,8 @@ function getInitialLocalDB(): LocalDB {
   const demoProject: Project = {
     id: initialProjectId,
     name: 'AI E-Commerce Platform',
-    description: 'A modern AI-powered e-commerce platform with automated product recommendations, smart shopping cart, and one-click checkout.',
+    description:
+      'A modern AI-powered e-commerce platform with automated product recommendations, smart shopping cart, and one-click checkout.',
     created_at: now,
     updated_at: now,
   };
@@ -45,7 +79,8 @@ function getInitialLocalDB(): LocalDB {
       id: 'task-1',
       project_id: initialProjectId,
       title: 'Design PostgreSQL Database Schema',
-      description: 'Set up tables for users, products, orders, and payment tracking with relational foreign keys.',
+      description:
+        'Set up tables for users, products, orders, and payment tracking with relational foreign keys.',
       status: 'COMPLETED',
       priority: 'HIGH',
       category: 'Backend',
@@ -56,7 +91,8 @@ function getInitialLocalDB(): LocalDB {
       id: 'task-2',
       project_id: initialProjectId,
       title: 'Implement OAuth & JWT Authentication',
-      description: 'Configure secure user signup, login, and session tokens with NextAuth.',
+      description:
+        'Configure secure user signup, login, and session tokens with built-in auth.',
       status: 'IN_PROGRESS',
       priority: 'HIGH',
       category: 'Security',
@@ -67,7 +103,8 @@ function getInitialLocalDB(): LocalDB {
       id: 'task-3',
       project_id: initialProjectId,
       title: 'Build Interactive Product Catalog',
-      description: 'Create responsive grid with filtering by price, category, and real-time search.',
+      description:
+        'Create responsive grid with filtering by price, category, and real-time search.',
       status: 'TODO',
       priority: 'MEDIUM',
       category: 'Frontend',
@@ -89,7 +126,8 @@ function getInitialLocalDB(): LocalDB {
       id: 'task-5',
       project_id: initialProjectId,
       title: 'Add AI Recommendation Engine',
-      description: 'Generate real-time personalized product suggestions using vector similarity.',
+      description:
+        'Generate real-time personalized product suggestions using vector similarity.',
       status: 'TODO',
       priority: 'MEDIUM',
       category: 'AI / ML',
@@ -146,13 +184,16 @@ function writeLocalDB(db: LocalDB): void {
   }
 }
 
-function calculateStats(tasks: Task[]): ProjectStats {
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((t) => t.status === 'COMPLETED').length;
-  const inProgressTasks = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
-  const todoTasks = tasks.filter((t) => t.status === 'TODO').length;
-  const highPriorityTasks = tasks.filter((t) => t.priority === 'HIGH' && t.status !== 'COMPLETED').length;
-  const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+function calculateStats(taskList: Task[]): ProjectStats {
+  const totalTasks = taskList.length;
+  const completedTasks = taskList.filter((t) => t.status === 'COMPLETED').length;
+  const inProgressTasks = taskList.filter((t) => t.status === 'IN_PROGRESS').length;
+  const todoTasks = taskList.filter((t) => t.status === 'TODO').length;
+  const highPriorityTasks = taskList.filter(
+    (t) => t.priority === 'HIGH' && t.status !== 'COMPLETED'
+  ).length;
+  const completionPercentage =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return {
     totalTasks,
@@ -165,24 +206,18 @@ function calculateStats(tasks: Task[]): ProjectStats {
 }
 
 // ==========================================
-// Database Operations Service
+// Project Operations
 // ==========================================
 
 export async function getProjects(): Promise<ProjectWithStats[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data: projects, error: pError } = await supabase
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
+  if (isDatabaseConfigured && pgDb) {
+    const [allProjects, allTaskRows] = await Promise.all([
+      pgDb.select().from(projects).orderBy(desc(projects.created_at)),
+      pgDb.select().from(tasks),
+    ]);
 
-    if (pError) throw new Error(pError.message);
-    if (!projects) return [];
-
-    const { data: tasks, error: tError } = await supabase.from('tasks').select('*');
-    if (tError) throw new Error(tError.message);
-
-    const allTasks: Task[] = (tasks || []) as Task[];
-    return projects.map((p) => {
+    const allTasks = allTaskRows.map(normalizeTask);
+    return allProjects.map((p) => {
       const pTasks = allTasks.filter((t) => t.project_id === p.id);
       return {
         ...p,
@@ -191,7 +226,6 @@ export async function getProjects(): Promise<ProjectWithStats[]> {
     });
   }
 
-  // Fallback to local DB
   const db = readLocalDB();
   return db.projects
     .map((p) => {
@@ -205,23 +239,21 @@ export async function getProjects(): Promise<ProjectWithStats[]> {
 }
 
 export async function getProjectById(id: string): Promise<ProjectWithStats | null> {
-  if (isSupabaseConfigured && supabase) {
-    const { data: project, error: pError } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', id)
-      .single();
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(id)) return null;
 
-    if (pError || !project) return null;
+    const [project] = await pgDb
+      .select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1);
 
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('project_id', id);
+    if (!project) return null;
 
+    const taskRows = await pgDb.select().from(tasks).where(eq(tasks.project_id, id));
     return {
       ...project,
-      stats: calculateStats((tasks || []) as Task[]),
+      stats: calculateStats(taskRows.map(normalizeTask)),
     };
   }
 
@@ -239,19 +271,17 @@ export async function getProjectById(id: string): Promise<ProjectWithStats | nul
 export async function createProject(input: CreateProjectInput): Promise<Project> {
   const now = new Date().toISOString();
 
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('projects')
-      .insert({
+  if (isDatabaseConfigured && pgDb) {
+    const [created] = await pgDb
+      .insert(projects)
+      .values({
         name: input.name.trim(),
         description: input.description.trim(),
       })
-      .select()
-      .single();
+      .returning();
 
-    if (error) throw new Error(error.message);
-    await logActivity(data.id, 'PROJECT_CREATED', `Project "${data.name}" created.`);
-    return data;
+    await logActivity(created.id, 'PROJECT_CREATED', `Project "${created.name}" created.`);
+    return created;
   }
 
   const db = readLocalDB();
@@ -269,23 +299,28 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   return newProject;
 }
 
-export async function updateProject(id: string, input: UpdateProjectInput): Promise<Project | null> {
+export async function updateProject(
+  id: string,
+  input: UpdateProjectInput
+): Promise<Project | null> {
   const now = new Date().toISOString();
 
-  if (isSupabaseConfigured && supabase) {
-    const updateData: Partial<Project> = { updated_at: now };
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(id)) return null;
+
+    const updateData: { name?: string; description?: string; updated_at: string } = {
+      updated_at: now,
+    };
     if (input.name) updateData.name = input.name.trim();
     if (input.description) updateData.description = input.description.trim();
 
-    const { data, error } = await supabase
-      .from('projects')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
+    const [updated] = await pgDb
+      .update(projects)
+      .set(updateData)
+      .where(eq(projects.id, id))
+      .returning();
 
-    if (error) throw new Error(error.message);
-    return data;
+    return updated || null;
   }
 
   const db = readLocalDB();
@@ -304,9 +339,9 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
 }
 
 export async function deleteProject(id: string): Promise<boolean> {
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.from('projects').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(id)) return false;
+    await pgDb.delete(projects).where(eq(projects.id, id));
     return true;
   }
 
@@ -323,15 +358,15 @@ export async function deleteProject(id: string): Promise<boolean> {
 // ==========================================
 
 export async function getTasks(projectId: string): Promise<Task[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(projectId)) return [];
+    const rows = await pgDb
+      .select()
+      .from(tasks)
+      .where(eq(tasks.project_id, projectId))
+      .orderBy(desc(tasks.created_at));
 
-    if (error) throw new Error(error.message);
-    return data || [];
+    return rows.map(normalizeTask);
   }
 
   const db = readLocalDB();
@@ -341,15 +376,10 @@ export async function getTasks(projectId: string): Promise<Task[]> {
 }
 
 export async function getTaskById(id: string): Promise<Task | null> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) return null;
-    return data;
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(id)) return null;
+    const [row] = await pgDb.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return row ? normalizeTask(row) : null;
   }
 
   const db = readLocalDB();
@@ -358,17 +388,19 @@ export async function getTaskById(id: string): Promise<Task | null> {
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
   const now = new Date().toISOString();
-  const validStatus: TaskStatus = input.status && ['TODO', 'IN_PROGRESS', 'COMPLETED'].includes(input.status)
-    ? input.status
-    : 'TODO';
-  const validPriority: TaskPriority = input.priority && ['LOW', 'MEDIUM', 'HIGH'].includes(input.priority)
-    ? input.priority
-    : 'MEDIUM';
+  const validStatus: TaskStatus =
+    input.status && ['TODO', 'IN_PROGRESS', 'COMPLETED'].includes(input.status)
+      ? input.status
+      : 'TODO';
+  const validPriority: TaskPriority =
+    input.priority && ['LOW', 'MEDIUM', 'HIGH'].includes(input.priority)
+      ? input.priority
+      : 'MEDIUM';
 
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert({
+  if (isDatabaseConfigured && pgDb) {
+    const [created] = await pgDb
+      .insert(tasks)
+      .values({
         project_id: input.project_id,
         title: input.title.trim(),
         description: input.description?.trim() || '',
@@ -376,12 +408,15 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
         priority: validPriority,
         category: input.category?.trim() || 'General',
       })
-      .select()
-      .single();
+      .returning();
 
-    if (error) throw new Error(error.message);
-    await logActivity(input.project_id, 'TASK_CREATED', `Created task: "${data.title}" [${data.priority}]`);
-    return data;
+    const task = normalizeTask(created);
+    await logActivity(
+      input.project_id,
+      'TASK_CREATED',
+      `Created task: "${task.title}" [${task.priority}]`
+    );
+    return task;
   }
 
   const db = readLocalDB();
@@ -399,11 +434,18 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 
   db.tasks.push(newTask);
   writeLocalDB(db);
-  await logActivity(input.project_id, 'TASK_CREATED', `Created task: "${newTask.title}" [${newTask.priority}]`);
+  await logActivity(
+    input.project_id,
+    'TASK_CREATED',
+    `Created task: "${newTask.title}" [${newTask.priority}]`
+  );
   return newTask;
 }
 
-export async function createBatchTasks(projectId: string, tasksInput: Omit<CreateTaskInput, 'project_id'>[]): Promise<Task[]> {
+export async function createBatchTasks(
+  projectId: string,
+  tasksInput: Omit<CreateTaskInput, 'project_id'>[]
+): Promise<Task[]> {
   const created: Task[] = [];
   for (const t of tasksInput) {
     const task = await createTask({
@@ -412,31 +454,56 @@ export async function createBatchTasks(projectId: string, tasksInput: Omit<Creat
     });
     created.push(task);
   }
-  await logActivity(projectId, 'AI_PLAN_APPLIED', `Generated and added ${created.length} tasks via AI Plan.`);
+  await logActivity(
+    projectId,
+    'AI_PLAN_APPLIED',
+    `Generated and added ${created.length} tasks via AI Plan.`
+  );
   return created;
 }
 
-export async function updateTask(id: string, input: UpdateTaskInput): Promise<Task | null> {
+export async function updateTask(
+  id: string,
+  input: UpdateTaskInput
+): Promise<Task | null> {
   const now = new Date().toISOString();
 
-  if (isSupabaseConfigured && supabase) {
-    const updatePayload: Partial<Task> = { updated_at: now };
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(id)) return null;
+
+    const updatePayload: {
+      title?: string;
+      description?: string;
+      status?: TaskStatus;
+      priority?: TaskPriority;
+      category?: string;
+      updated_at: string;
+    } = { updated_at: now };
+
     if (input.title !== undefined) updatePayload.title = input.title.trim();
     if (input.description !== undefined) updatePayload.description = input.description.trim();
-    if (input.status && ['TODO', 'IN_PROGRESS', 'COMPLETED'].includes(input.status)) updatePayload.status = input.status;
-    if (input.priority && ['LOW', 'MEDIUM', 'HIGH'].includes(input.priority)) updatePayload.priority = input.priority;
+    if (input.status && ['TODO', 'IN_PROGRESS', 'COMPLETED'].includes(input.status)) {
+      updatePayload.status = input.status;
+    }
+    if (input.priority && ['LOW', 'MEDIUM', 'HIGH'].includes(input.priority)) {
+      updatePayload.priority = input.priority;
+    }
     if (input.category !== undefined) updatePayload.category = input.category.trim();
 
-    const { data, error } = await supabase
-      .from('tasks')
-      .update(updatePayload)
-      .eq('id', id)
-      .select()
-      .single();
+    const [updated] = await pgDb
+      .update(tasks)
+      .set(updatePayload)
+      .where(eq(tasks.id, id))
+      .returning();
 
-    if (error) throw new Error(error.message);
-    await logActivity(data.project_id, 'TASK_UPDATED', `Updated task "${data.title}" -> Status: ${data.status}`);
-    return data;
+    if (!updated) return null;
+    const task = normalizeTask(updated);
+    await logActivity(
+      task.project_id,
+      'TASK_UPDATED',
+      `Updated task "${task.title}" -> Status: ${task.status}`
+    );
+    return task;
   }
 
   const db = readLocalDB();
@@ -448,15 +515,23 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
     ...existing,
     ...(input.title !== undefined ? { title: input.title.trim() } : {}),
     ...(input.description !== undefined ? { description: input.description.trim() } : {}),
-    ...(input.status && ['TODO', 'IN_PROGRESS', 'COMPLETED'].includes(input.status) ? { status: input.status } : {}),
-    ...(input.priority && ['LOW', 'MEDIUM', 'HIGH'].includes(input.priority) ? { priority: input.priority } : {}),
+    ...(input.status && ['TODO', 'IN_PROGRESS', 'COMPLETED'].includes(input.status)
+      ? { status: input.status }
+      : {}),
+    ...(input.priority && ['LOW', 'MEDIUM', 'HIGH'].includes(input.priority)
+      ? { priority: input.priority }
+      : {}),
     ...(input.category !== undefined ? { category: input.category.trim() } : {}),
     updated_at: now,
   };
 
   db.tasks[index] = updated;
   writeLocalDB(db);
-  await logActivity(updated.project_id, 'TASK_UPDATED', `Updated task "${updated.title}" -> Status: ${updated.status}`);
+  await logActivity(
+    updated.project_id,
+    'TASK_UPDATED',
+    `Updated task "${updated.title}" -> Status: ${updated.status}`
+  );
   return updated;
 }
 
@@ -464,9 +539,9 @@ export async function deleteTask(id: string): Promise<boolean> {
   const task = await getTaskById(id);
   if (!task) return false;
 
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.from('tasks').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(id)) return false;
+    await pgDb.delete(tasks).where(eq(tasks.id, id));
     await logActivity(task.project_id, 'TASK_DELETED', `Deleted task "${task.title}"`);
     return true;
   }
@@ -482,21 +557,24 @@ export async function deleteTask(id: string): Promise<boolean> {
 // Activity Logs
 // ==========================================
 
-export async function logActivity(projectId: string, action: string, description: string): Promise<ActivityLog> {
+export async function logActivity(
+  projectId: string,
+  action: string,
+  description: string
+): Promise<ActivityLog> {
   const now = new Date().toISOString();
 
-  if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase
-      .from('activity_logs')
-      .insert({
+  if (isDatabaseConfigured && pgDb) {
+    const [created] = await pgDb
+      .insert(activityLogs)
+      .values({
         project_id: projectId,
         action,
         description,
       })
-      .select()
-      .single();
+      .returning();
 
-    if (data) return data;
+    return created;
   }
 
   const db = readLocalDB();
@@ -515,15 +593,14 @@ export async function logActivity(projectId: string, action: string, description
 }
 
 export async function getActivityLogs(projectId: string): Promise<ActivityLog[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data } = await supabase
-      .from('activity_logs')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(projectId)) return [];
+    return pgDb
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.project_id, projectId))
+      .orderBy(desc(activityLogs.created_at))
       .limit(20);
-
-    return data || [];
   }
 
   const db = readLocalDB();
@@ -540,15 +617,14 @@ export async function getActivityLogs(projectId: string): Promise<ActivityLog[]>
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
   const normalized = email.trim().toLowerCase();
 
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', normalized)
-      .single();
+  if (isDatabaseConfigured && pgDb) {
+    const [user] = await pgDb
+      .select()
+      .from(users)
+      .where(eq(users.email, normalized))
+      .limit(1);
 
-    if (error || !data) return null;
-    return data as UserRecord;
+    return user || null;
   }
 
   const db = readLocalDB();
@@ -556,15 +632,15 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
 }
 
 export async function getUserById(id: string): Promise<UserRecord | null> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single();
+  if (isDatabaseConfigured && pgDb) {
+    if (!isValidUuid(id)) return null;
+    const [user] = await pgDb
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
 
-    if (error || !data) return null;
-    return data as UserRecord;
+    return user || null;
   }
 
   const db = readLocalDB();
@@ -572,11 +648,9 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
 }
 
 export async function getUserCount(): Promise<number> {
-  if (isSupabaseConfigured && supabase) {
-    const { count } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true });
-    return count || 0;
+  if (isDatabaseConfigured && pgDb) {
+    const [result] = await pgDb.select({ value: count() }).from(users);
+    return result?.value || 0;
   }
 
   const db = readLocalDB();
@@ -593,20 +667,18 @@ export async function createUser(input: {
   const normalizedEmail = input.email.trim().toLowerCase();
   const role = input.role || 'Member';
 
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
+  if (isDatabaseConfigured && pgDb) {
+    const [created] = await pgDb
+      .insert(users)
+      .values({
         name: input.name.trim(),
         email: normalizedEmail,
         password_hash: input.password_hash,
         role,
       })
-      .select()
-      .single();
+      .returning();
 
-    if (error) throw new Error(error.message);
-    return data as UserRecord;
+    return created;
   }
 
   const db = readLocalDB();
@@ -631,18 +703,15 @@ export async function createUser(input: {
 export async function seedDemoProject(): Promise<Project> {
   const initial = getInitialLocalDB();
 
-  if (isSupabaseConfigured && supabase) {
+  if (isDatabaseConfigured && pgDb) {
     const demo = initial.projects[0];
-    const { data: createdProject, error: pError } = await supabase
-      .from('projects')
-      .insert({
+    const [createdProject] = await pgDb
+      .insert(projects)
+      .values({
         name: demo.name,
         description: demo.description,
       })
-      .select()
-      .single();
-
-    if (pError) throw new Error(pError.message);
+      .returning();
 
     await createBatchTasks(
       createdProject.id,
